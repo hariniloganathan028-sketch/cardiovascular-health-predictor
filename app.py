@@ -1,15 +1,37 @@
 import streamlit as st
-import pickle
+import pandas as pd
 import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
 
-# Load the trained Model and Scaler
-model = pickle.load(open('cardio_model.pkl', 'rb'))
-scaler = pickle.load(open('scaler.pkl', 'rb'))
-
+# Page Configuration
 st.set_page_config(page_title="Cardiovascular Risk Predictor", layout="centered")
 
 st.title("❤️ Cardio Health Risk Predictor")
 st.write("Enter your health details below to predict the risk of cardiovascular disease:")
+
+# 1. Load Data and Train Model on the Fly (Faster & No PKL file needed!)
+@st.cache_resource
+def load_and_train_model():
+    # Load the small dataset we uploaded
+    df = pd.read_csv("cardio_train_small.csv", sep=';')
+    
+    # Features and Target
+    X = df[['age', 'gender', 'height', 'weight', 'ap_hi', 'ap_lo', 'cholesterol', 'gluc', 'smoke', 'alco', 'active']]
+    y = df['cardio']
+    
+    # Scale features
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    
+    # Train Model
+    model = RandomForestClassifier(n_estimators=100, random_state=42, max_depth=10)
+    model.fit(X_scaled, y)
+    
+    return model, scaler
+
+# Load trained model and scaler
+model, scaler = load_and_train_model()
 
 # UI Inputs in English
 age = st.number_input("Age (in Years)", min_value=1, max_value=120, value=30)
@@ -35,15 +57,15 @@ alco_val = 1 if alco == "Yes" else 0
 active_val = 1 if active == "Yes" else 0
 
 if st.button("Predict"):
-    # Features List: age, gender, height, weight, ap_hi, ap_lo, cholesterol, gluc, smoke, alco, active
-    features = np.array([[age, gender_val, height, weight, ap_hi, ap_lo, chol_val, gluc_val, smoke_val, alco_val, active_val]])
-
+    # Features List (Converting age from years to days as original dataset is in days)
+    features = np.array([[age * 365.25, gender_val, height, weight, ap_hi, ap_lo, chol_val, gluc_val, smoke_val, alco_val, active_val]])
+    
     # Standardize inputs
     features_scaled = scaler.transform(features)
-
+    
     # Prediction
     prediction = model.predict(features_scaled)
-
+    
     st.write("---")
     if prediction[0] == 1:
         st.error("⚠️ **Warning:** There is a high risk of cardiovascular disease. Please consult a doctor.")
